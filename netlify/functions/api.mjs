@@ -1,5 +1,5 @@
 import {randomBytes} from 'node:crypto';
-import {GROUPS,cutoffEpoch,validateEntry,cleanEntry,config,request,reply,fail,parseBody,sameOrigin,user,iso} from './shared.mjs';
+import {GROUPS,cutoffEpoch,validateEntry,cleanEntry,config,request,reply,fail,parseBody,sameOrigin,user,iso} from '../shared.mjs';
 
 function pathOf(event){const p=event.path||'';const marker=p.includes('/.netlify/functions/api/')?'/.netlify/functions/api/':'/api/';return p.includes(marker)?p.slice(p.indexOf(marker)+marker.length):'';}
 function view(rows){const groups=Object.fromEntries(Object.keys(GROUPS).map(k=>[k,{count:0,items:[],minors:{}}]));const seen=new Set();for(const row of rows){const g=groups[row.group_key];if(!g)continue;const key=`${row.group_key}|${row.minor_key}|${row.name_key}`;if(seen.has(key))continue;seen.add(key);g.count++;if(row.group_key==='departed')(g.minors[row.minor_key]||=[]).push(row.name);else g.items.push(row.name);}return {groups,asOf:Date.now()};}

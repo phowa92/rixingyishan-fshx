@@ -1,4 +1,4 @@
-import { GROUPS, cutoffEpoch, validateEntry, cleanEntry } from '../../lib.mjs';
+import { GROUPS, cutoffEpoch, validateEntry, cleanEntry } from '../lib.mjs';
 export { GROUPS, cutoffEpoch, validateEntry, cleanEntry };
 export const iso = epoch => new Date(epoch).toISOString();
 export function config() { const url=process.env.SUPABASE_URL?.replace(/\/$/,''); const anon=process.env.SUPABASE_ANON_KEY; const service=process.env.SUPABASE_SERVICE_ROLE_KEY; if(!url||!anon||!service)throw Error('Supabase 环境变量尚未配置'); return {url,anon,service}; }

@@ -1,6 +1,6 @@
 # 日行一善 · 放生回向
 
-独立的 Netlify + Supabase 网站。首页使用提供的海景图；视觉延续 phowa 的宋体、宣纸白、墨色和金棕点缀。页面包括首页、填写、提交完成、名单展示和管理后台。
+独立的 Netlify + Supabase 网站。首页使用提供的海景图；视觉延续 phowa 的宋体、宣纸白、墨色和金棕点缀。页面包括首页、填写、提交完成、名单展示和管理后台。独立的 Netlify 站点已建立为 `rixingyishan-huixiang.netlify.app`，尚未连接新数据库或发布。
 
 ## 已实现
 
@@ -19,7 +19,7 @@
 
 ### 正式部署
 
-1. 创建**独立的** Supabase 项目，不复用 phowa 数据库。在 SQL Editor 执行 [`supabase/schema.sql`](supabase/schema.sql)。
+1. 创建**独立的** Supabase 项目，不复用 phowa 数据库。将本目录链接至新项目，再用 Supabase CLI 应用 [`supabase/migrations/20261112000000_initial.sql`](supabase/migrations/20261112000000_initial.sql)；[`supabase/schema.sql`](supabase/schema.sql) 保留为便于人工查看的同内容副本。
 2. 在 Supabase Auth Users 中创建首位管理员（邮箱密码）。然后在 SQL Editor 执行以下授权语句，将邮箱替换为实际邮箱：
 
    ```sql
@@ -27,7 +27,7 @@
    select id, email, 'owner' from auth.users where email = 'your-email@example.com';
    ```
 
-3. 创建**独立的** Netlify 站点，连接本项目的 GitHub 仓库。发布目录为 `public`，Functions 目录为 `netlify/functions`，仓库内 `netlify.toml` 已声明这些配置。
+3. 独立 Netlify 站点已创建，站点名为 `rixingyishan-huixiang`；连接本项目的新 GitHub 仓库。发布目录为 `public`，Functions 目录为 `netlify/functions`，仓库内 `netlify.toml` 已声明这些配置。
 4. 在 Netlify 站点环境变量中配置 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`。最后一项必须只放服务端环境变量，不能暴露给浏览器。参照 `.env.example`，不要提交真实密钥。
 5. 在 Supabase Auth → Email Templates → Reset Password 中，将邮件正文改为 [`supabase/recovery-email.html`](supabase/recovery-email.html) 的内容，让邮件包含 `{{ .Token }}` 验证码。配置正式站点的 Auth Site URL，并启用可用的邮件发送服务；否则默认恢复邮件只提供链接，网站的验证码输入框无法使用。
 6. 部署后在 Netlify Functions 页面核对 `cleanup` 显示为 Scheduled，下一次执行时间对应北京时间 00:00。定时函数只在已发布部署运行。
@@ -35,7 +35,7 @@
 ## 文件
 
 - `public/`：静态页面、样式、交互脚本与首页海景图。
-- `netlify/functions/api.mjs`：读取名单、批量填写、后台登录与管理接口。
+- `netlify/functions/api.mjs`：读取名单、批量填写、后台登录与管理接口；共用逻辑在 `netlify/shared.mjs`。
 - `netlify/functions/cleanup.mjs`：每日定时调用数据库清理函数。
 - `supabase/schema.sql`：独立 Supabase 项目的表、授权边界和原子清理函数。
 - `lib.mjs`：分类、回向文和北京时间规则。

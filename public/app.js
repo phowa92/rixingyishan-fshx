@@ -130,11 +130,11 @@ if (page === 'admin') {
       if (item.id !== account.id) {
         const actions = el('div', 'account-actions');
         const password = document.createElement('input');
-        password.type = 'password'; password.autocomplete = 'new-password'; password.placeholder = '新密码（至少12位）';
+        password.type = 'password'; password.minLength = 6; password.autocomplete = 'new-password'; password.placeholder = '新密码（至少6位）';
         password.setAttribute('aria-label', `修改 ${item.username} 的密码`);
         const change = el('button', '', '修改密码');
         change.onclick = async () => {
-          if (password.value.length < 12) return alert('新密码至少12位');
+          if (password.value.length < 6) return alert('新密码至少6位');
           try { await api(`/api/admin/accounts/${item.id}/password`, { method: 'PUT', body: JSON.stringify({ password: password.value }) }); password.value = ''; alert('密码已修改'); }
           catch (error) { alert(error.message); }
         };
@@ -213,7 +213,11 @@ if (page === 'admin') {
       $('current-password').value = ''; $('new-password').value = ''; message.textContent = '密码已修改。';
     } catch (error) { message.textContent = error.message; }
   };
-  $('forgot-toggle').onclick = () => { $('forgot-panel').classList.toggle('hidden'); $('reset-email').value ||= $('login-name').value; };
+  $('forgot-toggle').onclick = () => {
+    $('reset-email').value = '';
+    $('reset-message').textContent = '';
+    $('forgot-panel').classList.toggle('hidden');
+  };
   $('send-reset').onclick = async () => {
     $('reset-message').textContent = '';
     try {

@@ -219,17 +219,7 @@ if (page === 'admin') {
     try {
       const result = await api('/api/admin/forgot-password', { method: 'POST', body: JSON.stringify({ email: $('reset-email').value }) });
       $('reset-message').textContent = result.message || '请检查邮箱。';
-      if (result.previewCode) $('reset-message').textContent += ` 本地预览验证码：${result.previewCode}（不会发送邮件）`;
-    } catch (error) { $('reset-message').textContent = error.message; }
-  };
-  $('verify-reset').onclick = async () => {
-    $('reset-message').textContent = '';
-    $('temporary-password').classList.add('hidden');
-    try {
-      const result = await api('/api/admin/verify-reset', { method: 'POST', body: JSON.stringify({ email: $('reset-email').value, code: $('reset-code').value }) });
-      $('temporary-password').textContent = `临时密码：${result.temporaryPassword}`;
-      $('temporary-password').classList.remove('hidden');
-      $('reset-message').textContent = '请复制临时密码登录，然后在后台修改自己的密码。';
+      if (result.previewPassword) $('reset-message').textContent += ` 本地预览临时密码：${result.previewPassword}（不会发送邮件）`;
     } catch (error) { $('reset-message').textContent = error.message; }
   };
   api('/api/admin/session').then(async result => {

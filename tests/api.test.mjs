@@ -50,25 +50,30 @@ test('前台同类同名只显示一条，后台翻页与 CSV 保留两次填写
   } finally { globalThis.fetch = original; restore(); }
 });
 
-test('邮箱验证码验证成功后生成临时密码并更新该管理员账户', async () => {
+test('临时密码只通过邮件发送，申请时不修改原密码', async () => {
   const restore = withEnv(), original = globalThis.fetch;
+  process.env.RESEND_API_KEY = 'test-key';
+  process.env.ADMIN_RESET_FROM_EMAIL = 'admin@example.com';
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
-    const path = String(url); calls.push({ path, options });
-    if (path.includes('/rest/v1/admin_accounts')) return Response.json([{ id: testId }]);
-    if (path.includes('/auth/v1/recover')) return Response.json({});
-    if (path.includes('/auth/v1/verify')) return Response.json({ user: { id: testId } });
-    if (path.includes(`/auth/v1/admin/users/${testId}`)) return Response.json({ id: testId });
-    throw Error(`Unexpected URL: ${path}`);
+    calls.push({ url: String(url), options });
+    if (String(url).includes('/rest/v1/admin_accounts')) return Response.json([{ id: testId, email: 'owner@example.com' }]);
+    if (url === 'https://api.resend.com/emails') return Response.json({ id: 'email-id' });
+    throw Error('Unexpected request');
   };
   try {
-    const base = { httpMethod: 'POST', headers: { host: 'site.example', origin: 'https://site.example' } };
-    const sent = await handler({ ...base, path: '/api/admin/forgot-password', body: JSON.stringify({ email: 'owner@example.com' }) });
-    assert.equal(sent.statusCode, 200);
-    assert.equal(calls.some(call => call.path.includes('/auth/v1/recover')), true);
-    const verified = await handler({ ...base, path: '/api/admin/verify-reset', body: JSON.stringify({ email: 'owner@example.com', code: '123456' }) });
-    assert.equal(verified.statusCode, 200);
-    assert.ok(JSON.parse(verified.body).temporaryPassword.length >= 12);
-    assert.equal(calls.some(call => call.path.includes(`/auth/v1/admin/users/${testId}`) && call.options.method === 'PUT'), true);
-  } finally { globalThis.fetch = original; restore(); }
+    const result = await handler({ httpMethod: 'POST', headers: {}, path: '/api/admin/forgot-password', body: JSON.stringify({ email: 'owner@example.com' }) });
+    assert.equal(result.statusCode, 200);
+    const payload = JSON.parse(calls[1].options.body);
+    const password = payload.text.match(/[A-Za-z0-9_-]{32}/)[0];
+    assert.deepEqual(payload.to, ['owner@example.com']);
+    assert.ok(!result.body.includes(password));
+    assert.match(JSON.parse(calls[0].options.body).temporary_password_hash, /^[a-f0-9]{64}$/);
+    assert.equal(calls.length, 2);
+  } finally {
+    delete process.env.RESEND_API_KEY;
+    delete process.env.ADMIN_RESET_FROM_EMAIL;
+    globalThis.fetch = original;
+    restore();
+  }
 });

@@ -16,13 +16,10 @@
       <button id="login-button" class="button button-gold" type="button">登录</button>
       <button id="forgot-toggle" class="text-action" type="button">忘记密码？</button>
       <div id="forgot-panel" class="forgot-panel hidden">
-        <p class="form-help">输入管理员邮箱，邮件中的验证码核对成功后会显示临时密码。</p>
+        <p class="form-help">输入管理员邮箱，查收临时密码。请在 30 分钟内登录，并在后台修改自己的密码。</p>
         <label>管理员邮箱<input id="reset-email" type="email" autocomplete="email"></label>
-        <button id="send-reset" class="button button-light compact" type="button">发送验证码</button>
-        <label>邮箱验证码<input id="reset-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
-        <button id="verify-reset" class="button button-gold compact" type="button">获取临时密码</button>
+        <button id="send-reset" class="button button-light compact" type="button">发送临时密码</button>
         <p id="reset-message" class="form-help" role="status"></p>
-        <p id="temporary-password" class="temporary-password hidden" role="status"></p>
       </div>
     </section>
     <div id="admin-content" class="hidden">

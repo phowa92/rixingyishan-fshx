@@ -1,4 +1,4 @@
-import {randomBytes} from 'node:crypto';
+import {sendTemporaryPassword,useTemporaryPassword} from '../admin-password.mjs';
 import {GROUPS,cutoffEpoch,validateEntry,cleanEntry,config,request,reply,fail,parseBody,sameOrigin,user,iso} from '../shared.mjs';
 
 function pathOf(event){const p=event.path||'';const marker=p.includes('/.netlify/functions/api/')?'/.netlify/functions/api/':'/api/';return p.includes(marker)?p.slice(p.indexOf(marker)+marker.length):'';}
@@ -10,17 +10,20 @@ function recordsQuery(q){const term=String(q.q||'').slice(0,100).replace(/[%_,.(
 function toRecord(row){return {id:row.id,group:row.group_key,minor:row.minor_key,name:row.name,submittedAt:Date.parse(row.submitted_at)};}
 function csvCell(value){return `"${String(value??'').replaceAll('"','""')}"`;}
 function csv(rows){const format=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});const lines=[['记录ID','姓名','回向类目','子类目','填写时间（北京时间）']];for(const row of rows)lines.push([row.id,row.name,GROUPS[row.group_key]?.label||row.group_key,GROUPS[row.group_key]?.minors[row.minor_key]||'',format.format(new Date(row.submitted_at))]);return '\uFEFF'+lines.map(line=>line.map(csvCell).join(',')).join('\r\n')+'\r\n';}
-async function authPost(path,body){const {url,anon}=config();const response=await fetch(url+path,{method:'POST',headers:{apikey:anon,'Content-Type':'application/json'},body:JSON.stringify(body)});return {response,data:await response.json().catch(()=>({}))};}
 export async function handler(event){const p=pathOf(event),method=event.httpMethod,q=event.queryStringParameters||{};
 try{
   if(method==='GET'&&p==='config')return reply(200,{groups:GROUPS});
   if(method==='GET'&&p==='records'){const rows=await allRecords(`/rest/v1/records?select=group_key,minor_key,name,name_key,submitted_at&submitted_at=gte.${encodeURIComponent(iso(cutoffEpoch()))}&order=submitted_at.desc,id.desc`);return reply(200,view(rows));}
   if(!sameOrigin(event))return fail(403,'请求来源不正确');
   if(method==='POST'&&p==='records'){const body=parseBody(event);if(!Array.isArray(body.entries)||!body.entries.length)return fail(400,'请填写姓名');const items=[];for(const entry of body.entries){const issue=validateEntry(entry);if(issue)return fail(400,issue);const c=cleanEntry(entry);items.push({group_key:c.group,minor_key:c.minor,name:c.name,name_key:c.nameKey,submitted_at:iso(Date.now())});}await insert(items);return reply(201,{ok:true,count:items.length});}
-  if(method==='POST'&&p==='admin/login'){const b=parseBody(event),session=await login(b.username,b.password);const allowed=await user({headers:{cookie:'session='+encodeURIComponent(session.access_token)}});if(!allowed)return fail(403,'该账户没有后台权限');return reply(200,{ok:true},{'Set-Cookie':`session=${encodeURIComponent(session.access_token)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${Math.min(session.expires_in||3600,3600)}`});}
+  if(method==='POST'&&p==='admin/login'){const b=parseBody(event),email=String(b.username||'').trim().toLowerCase();let session;try{session=await login(email,b.password);}catch(error){if(error.message!=='账号或密码错误'||!await useTemporaryPassword(email,b.password))throw error;session=await login(email,b.password);}const allowed=await user({headers:{cookie:'session='+encodeURIComponent(session.access_token)}});if(!allowed)return fail(403,'该账户没有后台权限');return reply(200,{ok:true},{'Set-Cookie':`session=${encodeURIComponent(session.access_token)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${Math.min(session.expires_in||3600,3600)}`});}
   if(method==='POST'&&p==='admin/logout')return reply(200,{ok:true},{'Set-Cookie':'session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'});
-  if(method==='POST'&&p==='admin/forgot-password'){const email=String(parseBody(event).email||'').trim().toLowerCase();if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){const allowed=await request(`/rest/v1/admin_accounts?select=id&email=eq.${encodeURIComponent(email)}&limit=1`);if(allowed.length)await authPost('/auth/v1/recover',{email});}return reply(200,{ok:true,message:'如果该邮箱是管理员账户，验证码已发送。'});}
-  if(method==='POST'&&p==='admin/verify-reset'){const body=parseBody(event),email=String(body.email||'').trim().toLowerCase(),token=String(body.code||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^\d{6,8}$/.test(token))return fail(400,'邮箱或验证码不正确');const {response,data}=await authPost('/auth/v1/verify',{email,token,type:'recovery'});if(!response.ok||!data.user?.id)return fail(400,'验证码错误或已过期');const allowed=await request(`/rest/v1/admin_accounts?select=id&email=eq.${encodeURIComponent(email)}&id=eq.${data.user.id}&limit=1`);if(!allowed.length)return fail(403,'该账户没有后台权限');const temporaryPassword=randomBytes(18).toString('base64url');await request(`/auth/v1/admin/users/${data.user.id}`,{method:'PUT',body:JSON.stringify({password:temporaryPassword})});return reply(200,{temporaryPassword});}
+  if(method==='POST'&&p==='admin/forgot-password'){
+    const email=String(parseBody(event).email||'').trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return fail(400,'请输入有效邮箱');
+    const message=await sendTemporaryPassword(email);
+    return message?reply(200,{ok:true,message}):fail(503,'后台邮件服务尚未配置，请联系站点管理员');
+  }
   if(!p.startsWith('admin/'))return fail(404,'页面不存在');
   const admin=await user(event);if(!admin)return fail(401,'请先登录后台');
   if(method==='GET'&&p==='admin/session')return reply(200,{account:admin});

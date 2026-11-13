@@ -1,7 +1,7 @@
 // Local preview only. No Supabase connection and no real email delivery.
 import http from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GROUPS, cutoffEpoch, validateEntry, cleanEntry } from '../lib.mjs';
@@ -21,7 +21,7 @@ const files = { '/': 'index.html', '/submit': 'submit.html', '/records': 'record
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
 const accounts = [{ id: 1, username: 'preview@example.com', role: 'owner', password: 'PreviewOnly123!' }];
 let nextAccountId = 2;
-const sessions = new Map(), resetCodes = new Map();
+const sessions = new Map(), temporaryPasswords = new Map();
 function save() { mkdirSync(dirname(stateFile), { recursive: true }); writeFileSync(stateFile, JSON.stringify(rows, null, 2)); }
 function send(res, status, value, headers = {}) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers }); res.end(JSON.stringify(value)); }
 function body(req) { return new Promise((resolve, reject) => { let raw = ''; req.on('data', chunk => { raw += chunk; if (raw.length > 1024 * 1024) reject(Error('请求内容过大')); }); req.on('end', () => { try { resolve(JSON.parse(raw || '{}')); } catch { reject(Error('请求格式错误')); } }); }); }
@@ -46,8 +46,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, { ok: true, count: clean.length });
     }
     if (path === '/api/admin/login' && req.method === 'POST') {
-      const input = await body(req), account = accounts.find(item => item.username === input.username && item.password === input.password);
-      if (!account) return send(res, 401, { error: '预览账号或密码错误' });
+      const input = await body(req), account = accounts.find(item => item.username === input.username);
+      const temporary = temporaryPasswords.get(input.username);
+      if (account && temporary?.password === input.password && temporary.expires > Date.now()) {
+        account.password = temporary.password;
+        temporaryPasswords.delete(input.username);
+      }
+      if (!account || account.password !== input.password) return send(res, 401, { error: '预览账号或密码错误' });
       const token = randomBytes(24).toString('hex'); sessions.set(token, account.id);
       return send(res, 200, { ok: true }, { 'Set-Cookie': `preview-session=${token}; HttpOnly; SameSite=Strict; Path=/` });
     }
@@ -57,15 +62,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/admin/forgot-password' && req.method === 'POST') {
       const input = await body(req), email = String(input.email || '').trim().toLowerCase(), account = accounts.find(item => item.username === email);
-      let previewCode;
-      if (account) { previewCode = String(randomInt(100000, 1000000)); resetCodes.set(email, { code: previewCode, expires: Date.now() + 10 * 60 * 1000 }); }
-      return send(res, 200, { ok: true, message: '如果该邮箱是管理员账户，验证码已发送。', ...(previewCode ? { previewCode } : {}) });
-    }
-    if (path === '/api/admin/verify-reset' && req.method === 'POST') {
-      const input = await body(req), email = String(input.email || '').trim().toLowerCase(), code = resetCodes.get(email), account = accounts.find(item => item.username === email);
-      if (!account || !code || code.expires < Date.now() || code.code !== String(input.code || '').trim()) return send(res, 400, { error: '验证码错误或已过期' });
-      resetCodes.delete(email); account.password = randomBytes(18).toString('base64url');
-      return send(res, 200, { temporaryPassword: account.password });
+      const previewPassword = account ? randomBytes(24).toString('base64url') : null;
+      if (previewPassword) temporaryPasswords.set(email, { password: previewPassword, expires: Date.now() + 30 * 60_000 });
+      return send(res, 200, { ok: true, message: '如果该邮箱是管理员账户，请查收临时密码邮件。', ...(previewPassword ? { previewPassword } : {}) });
     }
     const account = currentAccount(req);
     if (path.startsWith('/api/admin/') && !account) return send(res, 401, { error: '请先登录后台' });

@@ -254,10 +254,6 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-[auth.email.template.recovery]
-subject = "日行一善 · 管理员密码重置验证码"
-content_path = "./supabase/recovery-email.html"
-
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

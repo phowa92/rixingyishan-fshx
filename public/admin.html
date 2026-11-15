@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="text-scale" content="scale">
   <title>数据管理 · 日行一善</title><link rel="stylesheet" href="/style.css">
 </head>
 <body data-page="admin">
@@ -27,14 +27,15 @@
         <div class="admin-card-head"><h2>名单管理</h2><div class="admin-head-actions"><button id="export-csv" class="button button-light compact" type="button">下载 CSV</button><button id="new-record" class="button button-gold compact" type="button">＋ 新增名单</button></div></div>
         <p class="form-help">后台保留每次实际填写，同名重复记录会逐条显示；前台只显示同类姓名的最新一条。</p>
         <div class="admin-filters"><input id="search-name" placeholder="搜索姓名" aria-label="搜索姓名"><select id="filter-group" aria-label="筛选类目"><option value="">全部类目</option><option value="departed">往生者</option><option value="patients">病患</option><option value="blessings">祈福</option></select></div>
-        <div class="table-wrap"><table><thead><tr><th>姓名</th><th>类目</th><th>提交时间</th><th>操作</th></tr></thead><tbody id="admin-rows"></tbody></table></div>
+        <div class="bulk-actions"><label>开始日期<input id="select-from" type="date"></label><label>结束日期<input id="select-to" type="date"></label><button id="select-dates" class="button button-light compact" type="button">全选该时间段</button><button id="clear-selection" class="button button-light compact" type="button">清空选择</button><button id="delete-selected" class="button button-light compact danger-button" type="button" disabled>删除选中（0）</button></div>
+        <div class="table-wrap"><table class="admin-records-table"><thead><tr><th class="select-cell"><input id="select-page" type="checkbox" aria-label="全选本页"></th><th class="name-cell">姓名</th><th class="category-cell">类目</th><th class="submitted-cell">提交时间</th></tr></thead><tbody id="admin-rows"></tbody></table></div>
         <div class="pagination"><span id="page-status" role="status"></span><div><button id="page-prev" class="button button-light compact" type="button">上一页</button><button id="page-next" class="button button-light compact" type="button">下一页</button></div></div>
       </section>
       <section id="account-card" class="admin-card hidden"><h2>管理账户</h2><div id="account-list"></div><div class="account-form"><input id="account-name" type="email" placeholder="新管理员邮箱" aria-label="新账号"><input id="account-password" type="password" minlength="6" placeholder="密码（至少6位）" aria-label="新账号密码"><button id="add-account" class="button button-gold compact" type="button">添加账户</button></div></section>
       <section class="admin-card"><h2>修改自己的密码</h2><div class="account-form"><input id="current-password" type="password" autocomplete="current-password" placeholder="当前密码" aria-label="当前密码"><input id="new-password" type="password" minlength="6" autocomplete="new-password" placeholder="新密码（至少6位）" aria-label="新密码"><button id="change-password" class="button button-gold compact" type="button">修改密码</button></div><p id="password-message" class="form-help" role="status"></p></section>
       <section class="admin-card"><h2>清理日志</h2><p class="form-help">每日北京时间 00:00 清理，日志保留90天。</p><div id="cleanup-logs"></div></section>
     </div>
-    <dialog id="edit-dialog" class="edit-dialog"><form method="dialog"><h2 id="edit-heading">编辑名单</h2><label>姓名<input id="edit-name"></label><label>大类目<select id="edit-group"><option value="departed">往生者</option><option value="patients">病患</option><option value="blessings">祈福</option></select></label><label id="edit-minor-wrap">子类目<select id="edit-minor"><option value="deceased">亡者</option><option value="infants">堕胎婴灵</option><option value="animals">旁生</option></select></label><p id="edit-error" class="form-error hidden" role="alert"></p><div class="dialog-actions"><button type="button" id="edit-cancel" class="button button-light">取消</button><button type="button" id="edit-save" class="button button-gold">保存</button></div></form></dialog>
+    <dialog id="edit-dialog" class="edit-dialog"><form method="dialog"><h2 id="edit-heading">编辑名单</h2><label>姓名<input id="edit-name" maxlength="60"></label><p class="form-help">后台可手动添加较长姓名，最多60个字符。</p><label>大类目<select id="edit-group"><option value="departed">往生者</option><option value="patients">病患</option><option value="blessings">祈福</option></select></label><label id="edit-minor-wrap">子类目<select id="edit-minor"></select></label><p id="edit-error" class="form-error hidden" role="alert"></p><div class="dialog-actions"><button type="button" id="edit-cancel" class="button button-light">取消</button><button type="button" id="edit-save" class="button button-gold">保存</button></div></form></dialog>
   </main>
   <script type="module" src="/app.js"></script>
 </body>

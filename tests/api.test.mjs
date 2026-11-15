@@ -77,3 +77,22 @@ test('临时密码只通过邮件发送，申请时不修改原密码', async ()
     restore();
   }
 });
+
+test('后台批量删除只提交所选记录 ID', async () => {
+  const restore = withEnv(), original = globalThis.fetch;
+  const ids = [testId, '22222222-2222-4222-8222-222222222222'];
+  let deletedUrl = '';
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url);
+    if (path.includes('/auth/v1/user')) return Response.json({ id: testId });
+    if (path.includes('/rest/v1/admin_accounts')) return Response.json([{ id: testId, email: 'owner@example.com', role: 'owner' }]);
+    if (options.method === 'DELETE') { deletedUrl = path; return new Response(null, { status: 204 }); }
+    throw Error(`Unexpected URL: ${path}`);
+  };
+  try {
+    const result = await handler({ path: '/api/admin/records/batch-delete', httpMethod: 'POST', headers: { cookie: 'session=token' }, body: JSON.stringify({ ids }) });
+    assert.equal(result.statusCode, 200);
+    assert.equal(JSON.parse(result.body).count, 2);
+    assert.ok(deletedUrl.endsWith(`id=in.(${ids.join(',')})`));
+  } finally { globalThis.fetch = original; restore(); }
+});

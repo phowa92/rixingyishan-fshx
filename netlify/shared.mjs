@@ -1,5 +1,5 @@
-import { GROUPS, cutoffEpoch, validateEntry, cleanEntry } from '../lib.mjs';
-export { GROUPS, cutoffEpoch, validateEntry, cleanEntry };
+import { GROUPS, cutoffEpoch, validateEntry, cleanEntry, beijingDateRange } from '../lib.mjs';
+export { GROUPS, cutoffEpoch, validateEntry, cleanEntry, beijingDateRange };
 export const iso = epoch => new Date(epoch).toISOString();
 export function config() { const url=process.env.SUPABASE_URL?.replace(/\/$/,''); const anon=process.env.SUPABASE_ANON_KEY; const service=process.env.SUPABASE_SERVICE_ROLE_KEY; if(!url||!anon||!service)throw Error('Supabase 环境变量尚未配置'); return {url,anon,service}; }
 export async function request(path,options={},withMeta=false) { const {url,service}=config(); const response=await fetch(url+path,{...options,headers:{apikey:service,Authorization:`Bearer ${service}`,...(options.body?{'Content-Type':'application/json'}:{}),...options.headers}}); const raw=await response.text(); let data;try{data=raw?JSON.parse(raw):null;}catch{data=raw;}if(!response.ok){const err=Error(data?.message||data?.msg||data?.error_description||'数据库请求失败');err.status=response.status;throw err;}return withMeta?{data,headers:response.headers}:data; }

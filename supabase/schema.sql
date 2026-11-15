@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.records (
   id uuid primary key default gen_random_uuid(),
   group_key text not null check (group_key in ('departed','patients','blessings')),
-  minor_key text not null default '' check ((group_key = 'departed' and minor_key in ('deceased','infants','animals')) or (group_key <> 'departed' and minor_key = '')),
+  minor_key text not null default '' check ((group_key = 'departed' and minor_key in ('deceased','infants','animals')) or (group_key = 'patients' and minor_key = '') or (group_key = 'blessings' and minor_key in ('','personal','organization'))),
   name text not null check (char_length(name) between 1 and 60),
   name_key text not null,
   submitted_at timestamptz not null default now()

@@ -4,3 +4,5 @@ data/
 preview/
 node_modules/
 .netlify/
+dist/
+output/

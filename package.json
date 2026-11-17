@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
-  "scripts": { "test": "node --test", "preview": "node scripts/preview.mjs" }
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "preview": "node scripts/preview.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16"
+  }
 }

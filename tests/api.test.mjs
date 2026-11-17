@@ -8,10 +8,12 @@ test('批量提交逐条写入，同批同名也保留实际记录',async()=>{
   process.env.SUPABASE_URL='https://example.supabase.co';process.env.SUPABASE_ANON_KEY='anon-test';process.env.SUPABASE_SERVICE_ROLE_KEY='service-test';
   const calls=[];globalThis.fetch=async(url,options)=>{calls.push({url,options});return new Response('',{status:201});};
   try{
-    const event={path:'/api/records',httpMethod:'POST',headers:{host:'site.example',origin:'https://site.example'},body:JSON.stringify({entries:[{group:'departed',minor:'deceased',name:'张三'},{group:'patients',minor:'',name:'张三'}]})};
+    const event={path:'/api/records',httpMethod:'POST',headers:{host:'site.example',origin:'https://site.example'},body:JSON.stringify({acknowledged:true,entries:[{group:'departed',minor:'deceased',name:'张三'},{group:'patients',minor:'',name:'张三'}]})};
+    const unconfirmed=await handler({...event,body:JSON.stringify({entries:[{group:'patients',minor:'',name:'李四'}]})});
+    assert.equal(unconfirmed.statusCode,400);assert.equal(calls.length,0);
     const ok=await handler(event);assert.equal(ok.statusCode,201);assert.equal(calls.length,1);
     const sent=JSON.parse(calls[0].options.body);assert.equal(sent.length,2);assert.equal(sent[0].group_key,'departed');assert.equal(sent[1].group_key,'patients');
-    const duplicate=await handler({...event,body:JSON.stringify({entries:[{group:'patients',minor:'',name:'李四'},{group:'patients',minor:'',name:'李四'}]})});assert.equal(duplicate.statusCode,201);assert.equal(calls.length,2);
+    const duplicate=await handler({...event,body:JSON.stringify({acknowledged:true,entries:[{group:'patients',minor:'',name:'李四'},{group:'patients',minor:'',name:'李四'}]})});assert.equal(duplicate.statusCode,201);assert.equal(calls.length,2);
     assert.equal(JSON.parse(calls[1].options.body).length,2);
     assert.equal(calls[1].url.endsWith('/rest/v1/records'),true);
   }finally{globalThis.fetch=original;for(const [k,v] of Object.entries(prior)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
@@ -34,6 +36,7 @@ test('前台同类同名只显示一条，后台翻页与 CSV 保留两次填写
     const path = String(url);
     if (path.includes('/auth/v1/user')) return Response.json({ id: testId });
     if (path.includes('/rest/v1/admin_accounts')) return Response.json([{ id: testId, email: 'owner@example.com', role: 'owner' }]);
+    if (path.includes('/rest/v1/rpc/public_records_since')) return Response.json([['departed','deceased','张三丰']]);
     if (path.includes('/rest/v1/records')) return new Response(JSON.stringify(records), { status: 200, headers: { 'Content-Range': '0-1/2' } });
     throw Error(`Unexpected URL: ${path}`);
   };
@@ -95,4 +98,32 @@ test('后台批量删除只提交所选记录 ID', async () => {
     assert.equal(JSON.parse(result.body).count, 2);
     assert.ok(deletedUrl.endsWith(`id=in.(${ids.join(',')})`));
   } finally { globalThis.fetch = original; restore(); }
+});
+
+
+test('名单编辑与删除保持后台权限校验，成功写入后下一次公开读取不缓存旧结果', async () => {
+  const restore=withEnv(), original=globalThis.fetch, calls=[];
+  let visibleName='旧名';
+  globalThis.fetch=async (url,options={}) => {
+    const path=String(url);calls.push({path,method:options.method||'GET'});
+    if(path.includes('/auth/v1/user'))return Response.json({id:testId});
+    if(path.includes('/rest/v1/admin_accounts'))return Response.json([{id:testId,email:'owner@example.com',role:'owner'}]);
+    if(path.includes('/rest/v1/rpc/public_records_since'))return Response.json(visibleName?[['patients','',visibleName]]:[]);
+    if(path.includes('/rest/v1/records?id=eq.')&&options.method==='PATCH'){visibleName=JSON.parse(options.body).name;return new Response(null,{status:204});}
+    if(path.includes('/rest/v1/records?id=eq.')&&options.method==='DELETE'){visibleName='';return new Response(null,{status:204});}
+    throw Error('Unexpected request');
+  };
+  try {
+    const edit={path:`/api/admin/records/${testId}`,httpMethod:'PUT',headers:{host:'site.example'},body:JSON.stringify({group:'patients',minor:'',name:'新名'})};
+    assert.equal((await handler(edit)).statusCode,401);
+    assert.equal(calls.length,0);
+    assert.equal((await handler({...edit,headers:{host:'site.example',cookie:'session=token'}})).statusCode,200);
+    const afterEdit=await handler({path:'/api/records',httpMethod:'GET',headers:{}});
+    assert.deepEqual(JSON.parse(afterEdit.body).groups.patients.items,['新名']);
+    assert.equal(afterEdit.headers['Cache-Control'],'no-store');
+    assert.equal((await handler({path:edit.path,httpMethod:'DELETE',headers:{host:'site.example',cookie:'session=token'}})).statusCode,200);
+    const afterDelete=await handler({path:'/api/records',httpMethod:'GET',headers:{}});
+    assert.deepEqual(JSON.parse(afterDelete.body).groups.patients.items,[]);
+    assert.equal(calls.filter(call=>call.path.includes('/rest/v1/rpc/public_records_since')).length,2);
+  } finally {globalThis.fetch=original;restore();}
 });

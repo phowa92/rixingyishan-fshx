@@ -5,7 +5,7 @@
   <title>数据管理 · 日行一善</title><link rel="stylesheet" href="/style.css">
 </head>
 <body data-page="admin">
-  <header class="site-header"><a class="brand" href="/">日行一善 <span>· 放生回向</span></a><nav aria-label="主导航"><a href="/records">查看名单</a><button type="button" id="logout" class="nav-button hidden">退出</button></nav></header>
+  <header class="site-header"><a class="brand" href="/">日行一善 <span>· 功德回向</span></a><nav aria-label="主导航"><a href="/records">查看名单</a><button type="button" id="logout" class="nav-button hidden">退出</button></nav></header>
   <main class="admin-page">
     <div class="page-heading"><p class="section-kicker">站点管理</p><h1>数据管理</h1><div class="gold-rule"></div></div>
     <section id="login-panel" class="admin-card login-card">
@@ -33,7 +33,7 @@
       </section>
       <section id="account-card" class="admin-card hidden"><h2>管理账户</h2><div id="account-list"></div><div class="account-form"><input id="account-name" type="email" placeholder="新管理员邮箱" aria-label="新账号"><input id="account-password" type="password" minlength="6" placeholder="密码（至少6位）" aria-label="新账号密码"><button id="add-account" class="button button-gold compact" type="button">添加账户</button></div></section>
       <section class="admin-card"><h2>修改自己的密码</h2><div class="account-form"><input id="current-password" type="password" autocomplete="current-password" placeholder="当前密码" aria-label="当前密码"><input id="new-password" type="password" minlength="6" autocomplete="new-password" placeholder="新密码（至少6位）" aria-label="新密码"><button id="change-password" class="button button-gold compact" type="button">修改密码</button></div><p id="password-message" class="form-help" role="status"></p></section>
-      <section class="admin-card"><h2>清理日志</h2><p class="form-help">每日北京时间 00:00 清理，日志保留90天。</p><div id="cleanup-logs"></div></section>
+      <section id="cleanup-card" class="admin-card"><h2>清理日志</h2><p class="form-help">每日北京时间 00:00 清理，日志保留90天。</p><div id="cleanup-logs"></div></section>
     </div>
     <dialog id="edit-dialog" class="edit-dialog"><form method="dialog"><h2 id="edit-heading">编辑名单</h2><label>姓名<input id="edit-name" maxlength="60"></label><p class="form-help">后台可手动添加较长姓名，最多60个字符。</p><label>大类目<select id="edit-group"><option value="departed">往生者</option><option value="patients">病患</option><option value="blessings">祈福</option></select></label><label id="edit-minor-wrap">子类目<select id="edit-minor"></select></label><p id="edit-error" class="form-error hidden" role="alert"></p><div class="dialog-actions"><button type="button" id="edit-cancel" class="button button-light">取消</button><button type="button" id="edit-save" class="button button-gold">保存</button></div></form></dialog>
   </main>

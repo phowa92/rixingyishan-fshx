@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { GROUPS, cutoffEpoch, validateEntry, cleanEntry, beijingDateRange } from '../lib.mjs';
 
 const project = join(dirname(fileURLToPath(import.meta.url)), '..');
-const root = join(project, 'public');
+const built = process.env.PREVIEW_BUILT === '1';
+const root = join(project, built ? 'dist' : 'public');
 const stateFile = join(project, 'data', 'preview-records.json');
 let rows = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : [
   { id: 1, group: 'departed', minor: 'deceased', name: '张三', nameKey: '张三', submittedAt: Date.now() },
@@ -18,7 +19,7 @@ let rows = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) :
 ];
 let nextId = Math.max(0, ...rows.map(row => Number(row.id))) + 1;
 const files = { '/': 'index.html', '/submit': 'submit.html', '/records': 'records.html', '/complete': 'complete.html', '/admin': 'admin.html' };
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const accounts = [{ id: 1, username: 'preview@example.com', role: 'owner', password: 'PreviewOnly123!' }];
 let nextAccountId = 2;
 const sessions = new Map(), temporaryPasswords = new Map();
@@ -35,12 +36,13 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && !path.startsWith('/api/')) {
       const file = files[path] || path.slice(1);
-      if (!['index.html', 'submit.html', 'records.html', 'complete.html', 'admin.html', 'style.css', 'app.js', 'hero-ocean.png'].includes(file)) return send(res, 404, { error: '不存在' });
-      res.writeHead(200, { 'Content-Type': types[extname(file)] }); return res.end(readFileSync(join(root, file)));
+      if (!['index.html', 'submit.html', 'records.html', 'complete.html', 'admin.html', 'style.css', 'app.js', 'hero-ocean.png'].includes(file) && !(built && /^(?:style|app|hero-ocean)-[a-f0-9]+\.(?:css|js|jpg)$/.test(file))) return send(res, 404, { error: '不存在' });
+      const cache = built && /-[a-f0-9]+\.(?:css|js|jpg)$/.test(file) ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate';
+      res.writeHead(200, { 'Content-Type': types[extname(file)], 'Cache-Control': cache }); return res.end(readFileSync(join(root, file)));
     }
     if (path === '/api/records' && req.method === 'GET') return send(res, 200, publicData());
     if (path === '/api/records' && req.method === 'POST') {
-      const input = await body(req); if (!Array.isArray(input.entries) || !input.entries.length) return send(res, 400, { error: '请填写姓名' });
+      const input = await body(req); if (input.acknowledged !== true) return send(res, 400, { error: '请先勾选确认' }); if (!Array.isArray(input.entries) || !input.entries.length) return send(res, 400, { error: '请填写姓名' });
       const clean = []; for (const entry of input.entries) { const issue = validateEntry(entry); if (issue) return send(res, 400, { error: issue }); clean.push(cleanEntry(entry)); }
       for (const entry of clean) rows.push({ id: nextId++, ...entry, submittedAt: Date.now() }); save();
       return send(res, 201, { ok: true, count: clean.length });
@@ -54,7 +56,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (!account || account.password !== input.password) return send(res, 401, { error: '预览账号或密码错误' });
       const token = randomBytes(24).toString('hex'); sessions.set(token, account.id);
-      return send(res, 200, { ok: true }, { 'Set-Cookie': `preview-session=${token}; HttpOnly; SameSite=Strict; Path=/` });
+      return send(res, 200, { ok: true, account: { id: account.id, email: account.username, role: account.role } }, { 'Set-Cookie': `preview-session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7776000` });
     }
     if (path === '/api/admin/logout' && req.method === 'POST') {
       const token = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('preview-session='))?.slice(16);
@@ -88,4 +90,5 @@ const server = http.createServer(async (req, res) => {
     return send(res, 404, { error: '预览模式未实现此操作' });
   } catch (error) { return send(res, 500, { error: error.message }); }
 });
-server.listen(8765, '127.0.0.1', () => console.log('本地预览：http://127.0.0.1:8765 （不连接 Supabase，不发送真实邮件）'));
+const port = Number(process.env.PREVIEW_PORT) || 8765;
+server.listen(port, '127.0.0.1', () => console.log(`本地预览：http://127.0.0.1:${port} （不连接 Supabase，不发送真实邮件）`));

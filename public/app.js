@@ -43,9 +43,9 @@ if (siteHeader && page === 'records') {
   }).observe(siteHeader);
 }
 const GROUPS = {
-  departed: { label: '往生者', minors: { deceased: '亡者', infants: '堕胎婴灵', animals: '旁生' }, prayer: '将今日放生功德回向给以下亡者、堕胎婴灵及旁生，愿其业障消除、蒙佛光摄受往生西方极乐世界。' },
-  patients: { label: '病患', minors: {}, prayer: '将今日放生功德回向给以下病患，愿其早日康复，平安健康；若手术者，手术顺利。' },
-  blessings: { label: '祈福', minors: { personal: '个人/家庭', organization: '公司/机构' }, prayer: '将今日放生功德回向给以下众生，愿其具足一切顺缘，合家身体健康，家庭和睦，事业兴旺，学业有成，福慧增长，善缘成熟，愿望实现，早证菩提。' }
+  departed: { label: '往生者', minors: { deceased: '亡者', infants: '堕胎婴灵', animals: '旁生' }, prayer: '将今日善法功德回向给以下亡者、堕胎婴灵及旁生，愿其业障消除、蒙佛光摄受往生西方极乐世界。' },
+  patients: { label: '病患', minors: {}, prayer: '将今日善法功德回向给以下病患，愿其身体健康、早日康复；若手术者，手术顺利。' },
+  blessings: { label: '祈福', minors: { personal: '个人/家庭', organization: '公司/机构' }, prayer: '将今日善法功德回向给以下众生，愿其具足一切顺缘，合家身体健康，家庭和睦，事业兴旺，学业有成，福慧增长，善缘成熟，愿望实现，早证菩提。' }
 };
 async function api(path, options = {}) { const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers } }); const data = await response.json(); if (!response.ok) throw new Error(data.error || '请求失败'); return data; }
 function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
@@ -63,10 +63,20 @@ if (page === 'submit') {
   const names = $('name-rows');
   const groupSelect = $('group-select');
   const minorSelect = $('minor-select');
+  const confirmation = $('submit-confirmation');
+  const confirmCheck = $('submit-confirm-check');
+  const submitButton = $('submit-button');
+  let confirmationTimer;
+  confirmCheck.onchange = () => {
+    submitButton.dataset.confirmRequired = String(!confirmCheck.checked);
+    submitButton.setAttribute('aria-label', confirmCheck.checked ? '确认提交' : '确认提交，请先勾选上方确认文案');
+    clearTimeout(confirmationTimer);
+    confirmation.classList.remove('needs-confirmation');
+  };
   function updateMinor() {
     $('minor-tip').classList.toggle('hidden', groupSelect.value !== 'departed' || minorSelect.value !== 'infants');
     const limit = nameLimit(minorSelect.value);
-    $('name-limit').textContent = `一次一名，最多${limit}个字符，点击＋可添加`;
+    $('name-limit').textContent = `一次一位，点击＋添加下一位（最多${limit}个字符）`;
     let shortened = false;
     names.querySelectorAll('input').forEach(input => {
       input.maxLength = limit;
@@ -90,7 +100,7 @@ if (page === 'submit') {
       remove.onclick = () => { wrap.remove(); refreshRows(); };
       wrap.append(remove);
     }
-    const add = el('button', '', '＋');
+    const add = el('button', 'name-add-button', '＋');
     add.type = 'button'; add.setAttribute('aria-label', '继续添加一位姓名'); add.onclick = addRow;
     wrap.append(add); names.append(wrap); input.focus();
   }
@@ -120,7 +130,16 @@ if (page === 'submit') {
   groupSelect.onchange = updateGroup;
   minorSelect.onchange = updateMinor;
   updateGroup(); addRow();
-  $('submit-button').onclick = async () => {
+  submitButton.onclick = async () => {
+    if (!confirmCheck.checked) {
+      confirmation.classList.remove('needs-confirmation');
+      void confirmation.offsetWidth;
+      confirmation.classList.add('needs-confirmation');
+      clearTimeout(confirmationTimer);
+      confirmationTimer = setTimeout(() => confirmation.classList.remove('needs-confirmation'), 1300);
+      confirmCheck.focus({ preventScroll: true });
+      return;
+    }
     showError('form-error', '');
     const group = groupSelect.value;
     const minor = group === 'patients' ? '' : minorSelect.value;
@@ -128,9 +147,9 @@ if (page === 'submit') {
     if (group !== 'patients' && !minor) return showError('form-error', `请选择${GROUPS[group].label}子类目`);
     const values = [...names.querySelectorAll('input')].map(input => input.value.trim().replace(/\s+/g, ' '));
     if (values.some(name => !name)) return showError('form-error', '请填写所有姓名，或删除空白姓名行');
-    const button = $('submit-button'); button.disabled = true; button.firstChild.textContent = '提交中… ';
+    const button = submitButton; button.disabled = true; button.firstChild.textContent = '提交中… ';
     try {
-      await api('/api/records', { method: 'POST', body: JSON.stringify({ entries: values.map(name => ({ group, minor, name })) }) });
+      await api('/api/records', { method: 'POST', body: JSON.stringify({ acknowledged: true, entries: values.map(name => ({ group, minor, name })) }) });
       location.assign(`/complete?group=${group}`);
     } catch (error) {
       showError('form-error', error.message); button.disabled = false; button.firstChild.textContent = '确认提交 ';
@@ -269,6 +288,29 @@ if (page === 'admin') {
     $('cleanup-logs').replaceChildren(...logs.slice(0, 12).map(log => el('p', 'form-help', `${formatTime(log.run_at)} · 清理 ${log.deleted_count} 条`)));
     if (!logs.length) $('cleanup-logs').textContent = '暂无清理日志';
   }
+  let deferredObserver;
+  function observeDeferredSections() {
+    deferredObserver?.disconnect();
+    if (account?.role === 'owner') $('account-card').classList.remove('hidden');
+    const targets = [
+      ...(account?.role === 'owner' ? [[$('account-card'), loadAccounts]] : []),
+      [$('cleanup-card'), loadLogs]
+    ];
+    if (!('IntersectionObserver' in window)) {
+      targets.forEach(([, load]) => load().catch(error => alert(error.message)));
+      return;
+    }
+    deferredObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const item = targets.find(([element]) => element === entry.target);
+        if (!item) continue;
+        deferredObserver.unobserve(entry.target);
+        item[1]().catch(error => alert(error.message));
+      }
+    }, { rootMargin: '120px' });
+    targets.forEach(([element]) => deferredObserver.observe(element));
+  }
   function openEdit(record) {
     editingId = record?.id || null;
     $('edit-heading').textContent = record ? '编辑名单' : '新增名单';
@@ -296,23 +338,25 @@ if (page === 'admin') {
   $('login-button').onclick = async () => {
     showError('login-error', '');
     try {
-      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: $('login-name').value, password: $('login-password').value }) });
-      const result = await api('/api/admin/session'); account = result.account; toggleLogin(true);
-      await Promise.all([loadRows(), loadAccounts(), loadLogs()]);
+      const result = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: $('login-name').value, password: $('login-password').value }) });
+      account = result.account; toggleLogin(true);
+      await loadRows(); observeDeferredSections();
     } catch (error) { showError('login-error', error.message); }
   };
   $('login-password').onkeydown = event => { if (event.key === 'Enter') $('login-button').click(); };
-  $('logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); account = null; toggleLogin(false); };
-  $('search-name').oninput = () => { selectedIds.clear(); pageNumber = 1; loadRows().catch(error => alert(error.message)); };
-  $('filter-group').onchange = () => { selectedIds.clear(); pageNumber = 1; loadRows().catch(error => alert(error.message)); };
+  $('logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); deferredObserver?.disconnect(); clearTimeout(searchTimer); account = null; toggleLogin(false); };
+  let searchTimer;
+  $('search-name').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { selectedIds.clear(); pageNumber = 1; loadRows().catch(error => alert(error.message)); }, 300); };
+  $('filter-group').onchange = () => { clearTimeout(searchTimer); selectedIds.clear(); pageNumber = 1; loadRows().catch(error => alert(error.message)); };
   for (const id of ['select-from', 'select-to']) {
     $(id).onchange = () => {
+      clearTimeout(searchTimer);
       if ($('select-from').value && $('select-to').value && $('select-from').value > $('select-to').value) return alert('结束日期不能早于开始日期');
       selectedIds.clear(); pageNumber = 1; loadRows().catch(error => alert(error.message));
     };
   }
-  $('page-prev').onclick = () => { if (pageNumber > 1) { pageNumber--; loadRows().catch(error => alert(error.message)); } };
-  $('page-next').onclick = () => { if (pageNumber * pageSize < total) { pageNumber++; loadRows().catch(error => alert(error.message)); } };
+  $('page-prev').onclick = () => { clearTimeout(searchTimer); if (pageNumber > 1) { pageNumber--; loadRows().catch(error => alert(error.message)); } };
+  $('page-next').onclick = () => { clearTimeout(searchTimer); if (pageNumber * pageSize < total) { pageNumber++; loadRows().catch(error => alert(error.message)); } };
   $('export-csv').onclick = async () => {
     const button = $('export-csv'); button.disabled = true;
     try {
@@ -352,6 +396,6 @@ if (page === 'admin') {
   };
   api('/api/admin/session').then(async result => {
     account = result.account; toggleLogin(true);
-    await Promise.all([loadRows(), loadAccounts(), loadLogs()]);
+    await loadRows(); observeDeferredSections();
   }).catch(() => toggleLogin(false));
 }

@@ -1,7 +1,7 @@
 export const GROUPS = {
-  departed: { label: '往生者', minors: { deceased: '亡者', infants: '堕胎婴灵', animals: '旁生' }, prayer: '将今日放生功德回向给以下亡者、堕胎婴灵及旁生，愿其业障消除、蒙佛光摄受往生西方极乐世界。' },
-  patients: { label: '病患', minors: {}, prayer: '将今日放生功德回向给以下病患，愿其早日康复，平安健康；若手术者，手术顺利。' },
-  blessings: { label: '祈福', minors: { personal: '个人/家庭', organization: '公司/机构' }, prayer: '将今日放生功德回向给以下众生，愿其具足一切顺缘，合家身体健康，家庭和睦，事业兴旺，学业有成，福慧增长，善缘成熟，愿望实现，早证菩提。' }
+  departed: { label: '往生者', minors: { deceased: '亡者', infants: '堕胎婴灵', animals: '旁生' }, prayer: '将今日善法功德回向给以下亡者、堕胎婴灵及旁生，愿其业障消除、蒙佛光摄受往生西方极乐世界。' },
+  patients: { label: '病患', minors: {}, prayer: '将今日善法功德回向给以下病患，愿其身体健康、早日康复；若手术者，手术顺利。' },
+  blessings: { label: '祈福', minors: { personal: '个人/家庭', organization: '公司/机构' }, prayer: '将今日善法功德回向给以下众生，愿其具足一切顺缘，合家身体健康，家庭和睦，事业兴旺，学业有成，福慧增长，善缘成熟，愿望实现，早证菩提。' }
 };
 
 export function beijingDay(epoch = Date.now()) {
